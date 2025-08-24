@@ -1,0 +1,247 @@
+{
+  "name": "Problem",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -304,
+        0
+      ],
+      "id": "b75c2feb-ec1a-44cb-bbd9-d6c837e5da22",
+      "name": "When chat message received",
+      "webhookId": "7ecef869-6b60-4d0f-b0ca-ef887601b066"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.message || $json.message || $json.chatInput }}\n",
+        "options": {
+          "systemMessage": "# System Prompt for AI Agent (Using $fromAI Function)\n\nYou are a calendar scheduling assistant. When a user asks to create a calendar event, you MUST structure your response to include these EXACT field names that can be extracted:\n\nYour response MUST contain these fields in a structured format:\n- *startTime*: The start time in ISO 8601 format\n- *endTime*: The end time in ISO 8601 format  \n- *summary*: The event title/summary\n\n## REQUIRED OUTPUT FORMAT:\n\nYou must respond with a structured output containing:\n\nstartTime: 2025-08-24T10:00:00+05:00\nendTime: 2025-08-24T11:00:00+05:00\nsummary: Team meeting\n\n\nOr as a JSON structure:\njson\n{\n  \"startTime\": \"2025-08-24T10:00:00+05:00\",\n  \"endTime\": \"2025-08-24T11:00:00+05:00\",\n  \"summary\": \"Team meeting\"\n}\n\n\n## CRITICAL FORMATTING RULES:\n\n1. *Always use Pakistan Standard Time*: +05:00 timezone offset\n2. *Date format MUST be*: YYYY-MM-DDTHH:MM:SS+05:00\n3. *Field names must be exactly*: startTime, endTime, summary\n4. *End time must be after start time*\n\n## Time Conversion Rules:\n\n### When user says:\n- \"now\" or \"immediately\" → Use current time in PKT\n- \"tomorrow\" → Tomorrow's date at the specified time\n- \"next Monday/Tuesday/etc\" → The next occurrence of that day\n- \"in 1 hour\" → Current time + 1 hour\n- \"at 2pm\" or \"at 14:00\" → Today at 14:00 unless another day is specified\n- \"morning\" → Default to 09:00\n- \"afternoon\" → Default to 14:00\n- \"evening\" → Default to 18:00\n\n### Duration handling:\n- If no duration specified → Make it 1 hour long\n- \"30 minute meeting\" → endTime = startTime + 30 minutes\n- \"2 hour workshop\" → endTime = startTime + 2 hours\n\n## Current Context:\n- Today's date: 2025-08-24\n- Current timezone: Pakistan Standard Time (+05:00)\n- Location: Faisalabad, Punjab, Pakistan\n\n## Examples:\n\n*User input*: \"Schedule a team meeting tomorrow at 10am for 1 hour\"\n*Your response*:\n\nstartTime: 2025-08-25T10:00:00+05:00\nendTime: 2025-08-25T11:00:00+05:00\nsummary: Team meeting\n\n\n*User input*: \"Add a project review today at 3pm\"\n*Your response*:\n\nstartTime: 2025-08-24T15:00:00+05:00\nendTime: 2025-08-24T16:00:00+05:00\nsummary: Project review\n\n\n*User input*: \"Quick standup in 30 minutes for 15 minutes\"\n*Your response*:\n\nstartTime: 2025-08-24T10:30:00+05:00\nendTime: 2025-08-24T10:45:00+05:00\nsummary: Quick standup\n\n\nIMPORTANT: The field names startTime, endTime, and summary must be extractable from your response for the calendar integration to work."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "4d51629a-57d6-4833-aaad-c17096e0b4ae",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.user_id }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        304,
+        224
+      ],
+      "id": "0c3e0d0a-b6fe-4f99-855e-644cd5f21abb",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    \"status\": \"success\",\n    \"message\": \"✅ Your Google Calendar event has been created successfully!\",\n    \"event\": {\n      \"summary\": $json.summary || \"Event\",\n      \"start\": $json.startTime,\n      \"end\": $json.endTime,\n      \"calendar\": \"asimniazi100@gmail.com\"\n    },\n    \"details\": \"The event '\" + ($json.summary || \"Event\") + \"' has been added to your Google Calendar.\",\n    \"confirmation\": \"You should see it in your calendar now. Google will send you a reminder based on your calendar settings.\"\n  }\n}}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        528,
+        0
+      ],
+      "id": "85d67f8c-1fe8-4e1f-b73c-4643ed10522d",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        0
+      ],
+      "id": "aad648f4-b6db-4de1-8264-525493b8963f",
+      "name": "Webhook",
+      "webhookId": "3635e23c-66f2-4b62-8049-2174c2933eac"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "asimniazi100@gmail.com",
+          "mode": "list",
+          "cachedResultName": "asimniazi100@gmail.com"
+        },
+        "start": "={{ $fromAI(\"startTime\") }}",
+        "end": "={{ $fromAI(\"endTime\") }}",
+        "additionalFields": {
+          "summary": "={{ $fromAI(\"summary\") }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        528,
+        224
+      ],
+      "id": "60c67f72-c139-42e9-9de0-35b525fd2e73",
+      "name": "Create an event in Google Calendar",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "0SigWoYTbu4Ksf0N",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        160,
+        224
+      ],
+      "id": "6f043c8c-008d-4b43-937b-48a1aed5c7bd",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "7smm8wfuKHdZig7N",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event in Google Calendar": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f1c080a3-a50c-4ee4-b7ef-ad58e33aa63a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6960643b6a7efec10b927194699052cc936dc05ef62fb98001568472ca015349"
+  },
+  "id": "Jth4HwqXPPrAnUij",
+  "tags": []
+}

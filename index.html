@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Chat Assistant</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, Segoe UI, Roboto, sans-serif;
+        background: #f6f6f6;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+      }
+      .head {
+        padding: 12px 16px;
+        border-bottom: 1px solid #eee;
+        background: #f8f9fa;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .meta .name {
+        font-weight: 600;
+      }
+      .meta .sub {
+        font-size: 13px;
+        color: #6c757d;
+      }
+      #log {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+        background: #fafafa;
+      }
+      .me,
+      .bot {
+        margin: 8px 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        max-width: 80%;
+      }
+      .me {
+        background: #e8f0ff;
+        margin-left: auto;
+      }
+      .bot {
+        background: #fff;
+        border: 1px solid #eee;
+      }
+      form {
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+        border-top: 1px solid #eee;
+      }
+      input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        outline: none;
+      }
+      button {
+        padding: 10px 14px;
+        border: none;
+        background: #6366f1;
+        color: #fff;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .foot {
+        padding: 10px 16px;
+        border-top: 1px solid #eee;
+        background: #f8f9fa;
+        text-align: center;
+        font-size: 13px;
+        color: #6c757d;
+      }
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.show {
+        display: flex;
+      }
+      .box {
+        background: #fff;
+        padding: 16px 18px;
+        border-radius: 10px;
+        max-width: 420px;
+        width: 92%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="head">
+        <div class="meta">
+          <div class="name">Asim Niazi</div>
+          <div class="sub">AI Chat Assistant</div>
+        </div>
+      </div>
+
+      <div id="log"></div>
+
+      <form id="form">
+        <input
+          id="msg"
+          placeholder="Type: Set a reminder Aug 22, 10–11 AM PKT, Team meeting"
+        />
+        <button type="submit">Send</button>
+      </form>
+
+      <div class="foot">© 2025 Asim Niazi • PKT Reminder Bot</div>
+    </div>
+
+    <!-- Success dialog -->
+    <div id="modal" class="modal" role="dialog" aria-modal="true">
+      <div class="box">
+        <h3>✅ Reminder set</h3>
+        <p id="modalText">Your event was added to Google Calendar.</p>
+        <div style="text-align: right; margin-top: 10px">
+          <button id="okBtn">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ---------------- CORRECTED N8N URL ----------------
+      const N8N_URL = "https://asimniazi.app.n8n.cloud/webhook-test/chatbot";
+      // After you activate the workflow and switch to production, change to:
+      // const N8N_URL = "https://asimniazi.app.n8n.cloud/webhook/chatbot";
+      // --------------------------------------------------
+
+      const logEl = document.getElementById("log");
+      const formEl = document.getElementById("form");
+      const msgEl = document.getElementById("msg");
+      const modal = document.getElementById("modal");
+      const modalTx = document.getElementById("modalText");
+      document.getElementById("okBtn").onclick = () =>
+        modal.classList.remove("show");
+
+      function add(text, mine = false) {
+        const div = document.createElement("div");
+        div.className = mine ? "me" : "bot";
+        div.textContent = text;
+        logEl.appendChild(div);
+        logEl.scrollTop = logEl.scrollHeight;
+        return div;
+      }
+
+      // Generate unique user ID for session tracking
+      function getUserId() {
+        let userId = localStorage.getItem("chatUserId");
+        if (!userId) {
+          userId = "user_" + Math.random().toString(36).substr(2, 9);
+          localStorage.setItem("chatUserId", userId);
+        }
+        return userId;
+      }
+
+      // CORRECTED POST REQUEST with proper JSON structure
+      async function sendToN8N(message) {
+        const requestBody = {
+          message: message,
+          user_id: getUserId(),
+          timestamp: new Date().toISOString(),
+        };
+
+        console.log("Sending request:", requestBody); // Debug log
+
+        const res = await fetch(N8N_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          mode: "cors",
+          credentials: "omit",
+        });
+
+        console.log("Response status:", res.status); // Debug log
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        try {
+          const responseData = await res.json();
+          console.log("Response data:", responseData); // Debug log
+          return responseData;
+        } catch (parseError) {
+          console.error("JSON parse error:", parseError);
+          // If response isn't JSON, try to get text
+          const text = await res.text();
+          return { reply: text || "Response received but couldn't parse JSON" };
+        }
+      }
+
+      formEl.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = msgEl.value.trim();
+        if (!text) return;
+
+        add(text, true);
+        msgEl.value = "";
+        const typing = add("Typing…");
+
+        try {
+          const data = await sendToN8N(text);
+
+          // Handle the response based on your n8n workflow structure
+          const replyText = data?.reply || data?.text || "Message processed";
+          typing.textContent = replyText;
+
+          // Check for successful event creation
+          if (data?.status === "success" && data?.event) {
+            const {
+              summary = "Reminder",
+              start = "(start)",
+              end = "(end)",
+            } = data.event;
+            modalTx.textContent = `${summary}\n${start} → ${end}`;
+            modal.classList.add("show");
+          } else if (
+            replyText.toLowerCase().includes("event created") ||
+            replyText.toLowerCase().includes("reminder set")
+          ) {
+            modalTx.textContent = replyText;
+            modal.classList.add("show");
+          }
+        } catch (err) {
+          console.error("Request failed:", err);
+          typing.textContent =
+            "⚠ Could not reach assistant. Check console for details.";
+        }
+      });
+
+      // Greeting
+      add(
+        "Hi! Ask me to set a PKT reminder, e.g., 'Set a reminder on Aug 22, 10–11 AM PKT, Team meeting'."
+      );
+      msgEl.focus();
+    </script>
+  </body>
+</html>
